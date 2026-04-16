@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import Shop from "./pages/Shop";
 import Cart from "./pages/Cart";
 import Home from "./pages/Home";
@@ -43,7 +43,7 @@ function AppWrapper() {
           <Route path="/profile" element={<Profile />} />
 
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Products />} />
+            <Route index element={<Navigate to="/admin/products" replace />} />
             <Route path="products" element={<Products />} />
             <Route path="products/info/:id" element={<ProductInfo />} />
             <Route path="products/add" element={<AddProduct />} />

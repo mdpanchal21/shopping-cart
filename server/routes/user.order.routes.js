@@ -9,9 +9,10 @@ const {
   orderHistory,
   cancelOrder,
 } = require("../controller/user.order.controller");
+const { roleMiddleware } = require("../middleware/roleMiddleware");
 
 router.get("/", authMiddleware, orderHistory);
-router.post("/", authMiddleware, validate(placeOrderSchema), placeOrder);
+router.post("/", authMiddleware, roleMiddleware("user"),  validate(placeOrderSchema), placeOrder);
 router.put("/", authMiddleware, validate(cancelOrderSchema), cancelOrder);
 
 module.exports = router;

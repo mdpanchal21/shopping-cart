@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Save, X, Image as ImageIcon, Plus, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Save, X, Image as ImageIcon, Plus, RefreshCw, Package, Tag, ChevronDown } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../../../utils/api';
 import { toast } from 'react-toastify';
 import { fetchCategories } from '../../store/slices/categorySlice'
+import { setGlobalLoading } from '../../store/slices/loadingSlice';
+
 
 const AddProduct = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { items: categories, loading: categoriesLoading } = useSelector((state) => state.category);
   
-  const [loading, setLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -43,7 +45,8 @@ const AddProduct = () => {
     e.preventDefault();
     if (!formData.category) return toast.error("Please select a category");
     
-    setLoading(true);
+    dispatch(setGlobalLoading(true));
+
     const data = new FormData();
     data.append('name', formData.name);
     data.append('description', formData.description);
@@ -63,126 +66,165 @@ const AddProduct = () => {
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to create product");
     } finally {
-      setLoading(false);
+      dispatch(setGlobalLoading(false));
     }
+
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
+    <div className="max-w-screen space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <Link to="/admin/products" className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all border border-transparent hover:border-slate-200">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2.5 bg-white hover:bg-slate-50 rounded-2xl text-slate-500 shadow-sm border border-slate-200 transition-all active:scale-95"
+          >
             <ChevronLeft size={24} />
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Add New Product</h1>
-            <p className="text-slate-500 font-medium">Create a new listing for your store.</p>
+          </button>
+          <div className="space-y-1">
+            <h1 className="text-4xl font-black text-slate-900 tracking-tight uppercase leading-none">
+              Add New Product
+            </h1>
+            <p className="text-slate-500 text-sm font-bold flex items-center gap-2">
+              <Plus size={14} className="text-indigo-600" />
+              Create a new listing for your store catalog
+            </p>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 space-y-6">
-            <div className="admin-card space-y-4">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">General Information</h3>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Product Name</label>
-                <input 
-                  type="text" 
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="e.g. Premium Cotton T-Shirt"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Description</label>
-                <textarea 
-                  name="description"
-                  required
-                  rows="5"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  placeholder="Tell customers about this product..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all resize-none"
-                />
-              </div>
-            </div>
-
-            <div className="admin-card">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">Pricing</h3>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Base Price ($)</label>
-                <input 
-                  type="number" 
-                  name="price"
-                  required
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  placeholder="0.00"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-indigo-500 transition-all font-sans"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="admin-card">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">Organization</h3>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Category</label>
-                <select 
-                  name="category"
-                  required
-                  value={formData.category}
-                  onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-indigo-500 appearance-none cursor-pointer disabled:opacity-50"
-                  disabled={categoriesLoading}
-                >
-                  <option value="">{categoriesLoading ? 'Loading Categories...' : 'Select Category'}</option>
-                  {categories.map(cat => (
-                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                  ))}
-                </select>
-                {categoriesLoading && <RefreshCw className="animate-spin text-indigo-500 mt-2 mx-auto" size={16} />}
-              </div>
-            </div>
-
-            <div className="admin-card">
-              <h3 className="text-lg font-bold text-slate-800 mb-4">Product Media</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {selectedImages.map((image, i) => (
-                    <div key={i} className="relative group aspect-square rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
-                      <img src={URL.createObjectURL(image)} alt="" className="w-full h-full object-cover" />
-                      <button 
-                        type="button"
-                        onClick={() => removeImage(i)}
-                        className="absolute top-1 right-1 p-1 bg-white/90 backdrop-blur rounded-lg text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ))}
-                  <label className="aspect-square rounded-xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-indigo-500 hover:text-indigo-500 transition-all cursor-pointer">
-                    <Plus size={24} />
-                    <span className="text-[10px] font-bold mt-1 uppercase leading-none">Upload</span>
-                    <input type="file" multiple className="hidden" onChange={handleImageChange} accept="image/*" />
-                  </label>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Main Info Columns */}
+          <div className="lg:col-span-8 space-y-8">
+            <div className="admin-card space-y-8 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 blur-3xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+              
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-6 flex items-center gap-2">
+                  <Package size={14} /> General Information
+                </h3>
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Product Identity</label>
+                    <input
+                      type="text"
+                      name="name"
+                      required
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="e.g. Premium Cotton T-Shirt"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Composition & Story</label>
+                    <textarea
+                      name="description"
+                      required
+                      rows="6"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      placeholder="Tell customers about this product..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 transition-all resize-none"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <button 
+            <div className="admin-card space-y-8">
+               <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 flex items-center gap-2">
+                 <Tag size={14} /> Currency & Valuation
+               </h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Retail Price ($)</label>
+                    <div className="relative">
+                       <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 font-black text-lg">$</span>
+                       <input
+                         type="number"
+                         name="price"
+                         required
+                         value={formData.price}
+                         onChange={handleInputChange}
+                         placeholder="0.00"
+                         className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-6 text-xl font-black text-indigo-600 placeholder:text-slate-200 focus:outline-none focus:border-indigo-500 focus:bg-white transition-all font-sans"
+                       />
+                    </div>
+                 </div>
+                 <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col justify-center">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Market Strategy</p>
+                    <p className="text-xs font-bold text-slate-500 leading-relaxed italic">The price should reflect current market demand and manufacturing costs.</p>
+                 </div>
+               </div>
+            </div>
+          </div>
+
+          {/* Sidebar Columns */}
+          <div className="lg:col-span-4 space-y-8">
+            <div className="admin-card space-y-6">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Classification</h3>
+              <div className="space-y-2 relative">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Market Category</label>
+                <div className="relative">
+                  <select
+                    name="category"
+                    required
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm font-black text-slate-900 appearance-none cursor-pointer focus:outline-none focus:border-indigo-500 transition-all disabled:opacity-50"
+                    disabled={categoriesLoading}
+                  >
+                    <option value="">{categoriesLoading ? 'Loading Categories...' : 'Select Category'}</option>
+                    {categories.map(cat => (
+                      <option key={cat._id} value={cat._id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 group-hover:text-indigo-500 transition-colors">
+                    {categoriesLoading ? <RefreshCw size={16} className="animate-spin text-indigo-500" /> : <ChevronDown size={18} />}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-card space-y-6">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Digital Assets</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {selectedImages.map((image, i) => (
+                  <div key={i} className="relative group aspect-square rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                    <img src={URL.createObjectURL(image)} alt="" className="w-full h-full object-cover p-1 rounded-2xl" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur rounded-xl text-rose-600 opacity-0 group-hover:opacity-100 transition-all shadow-xl active:scale-90"
+                    >
+                      <X size={14} strokeWidth={3} />
+                    </button>
+                    <div className="absolute inset-x-0 bottom-0 py-2 px-3 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                       <p className="text-[8px] font-black uppercase text-white tracking-widest">Image {i + 1}</p>
+                    </div>
+                  </div>
+                ))}
+                <label className="aspect-square rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all cursor-pointer group">
+                  <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                    <Plus size={24} className="group-hover:text-indigo-600 transition-colors" />
+                  </div>
+                  <span className="text-[9px] font-black mt-3 uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">Add Image</span>
+                  <input type="file" multiple className="hidden" onChange={handleImageChange} accept="image/*" />
+                </label>
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold italic text-center uppercase tracking-tighter">Maximum 5 images recommended</p>
+            </div>
+
+            <button
               type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-3 px-8 py-5 bg-indigo-600 text-white rounded-[2rem] text-sm font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-600/30 hover:shadow-indigo-600/40 active:scale-95 group overflow-hidden relative"
             >
-              {loading ? <RefreshCw className="animate-spin" size={20} /> : <Save size={20} />}
-              {loading ? "Saving..." : "Create Product"}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              <Save size={20} className="relative z-10" />
+              <span className="relative z-10">Commission Product</span>
             </button>
           </div>
         </div>

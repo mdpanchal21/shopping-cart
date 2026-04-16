@@ -527,12 +527,10 @@ const Profile = () => {
                                   onClick={() => handleCancelOrder(order._id)}
                                   className="px-4 py-2 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-sm"
                                 >
-                                  Request Cancellation
+                                Cancel Order
                                 </button>
                               )}
-                              <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:translate-x-1 transition-transform">
-                                Details <ChevronRight size={14} />
-                              </button>
+                              
                             </div>
                           </div>
                         </div>

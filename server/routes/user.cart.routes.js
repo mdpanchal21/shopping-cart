@@ -12,9 +12,10 @@ const {
   removeFromCart,
   getCartProduct,
 } = require("../controller/user.cart.controller");
+const { roleMiddleware } = require("../middleware/roleMiddleware");
 
 router.get("/", authMiddleware, getCartProduct);
-router.post("/:productId", authMiddleware, validateAll(addToCartSchema), addToCart);
+router.post("/:productId", authMiddleware, roleMiddleware("user"),validateAll(addToCartSchema), addToCart);
 router.delete("/:productId", authMiddleware, validateParams(removeFromCartSchema), removeFromCart);
 
 module.exports = router;

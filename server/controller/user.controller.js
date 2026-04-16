@@ -23,18 +23,15 @@ exports.getAllUsers = async (req, res) => {
     const totalUsers = await User.countDocuments(query);
     const totalPages = Math.ceil(totalUsers / limit);
 
-    const users = await User.find(
-      query,
-      {
-        firstname: 1,
-        lastname: 1,
-        email: 1,
-        isActive: 1,
-        role: 1,
-        createdAt: 1,
-        avatar : 1
-      },
-    )
+    const users = await User.find(query, {
+      firstname: 1,
+      lastname: 1,
+      email: 1,
+      isActive: 1,
+      role: 1,
+      createdAt: 1,
+      avatar: 1,
+    })
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 })
@@ -61,32 +58,6 @@ exports.getAllUsers = async (req, res) => {
   } catch (err) {
     return res.status(500).json({
       message: "Server error while fetching users",
-      error: err.message,
-    });
-  }
-};
-
-exports.deleteUsers = async (req, res) => {
-  try {
-    const { userId, value } = req.body;
-
-    const findUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: { isActive: value } },
-      { new: true },
-    );
-
-    if (!findUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    return res.status(200).json({
-      message: `User ${value ? "activated" : "deactivated"} successfully`,
-      data: findUser,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      message: "Server error while updating user status",
       error: err.message,
     });
   }
@@ -132,7 +103,7 @@ exports.getUserDetails = async (req, res) => {
     }
 
     const orders = await Order.find({ createdBy: userId })
-    .select("-createdBy -isActive -__v")
+      .select("-createdBy -isActive -__v")
       .populate({
         path: "products.product",
         select: "-isActive -__v -createdAt -updatedAt",
@@ -150,6 +121,27 @@ exports.getUserDetails = async (req, res) => {
   } catch (err) {
     return res.status(500).json({
       message: "Server error while fetching user detail",
+      error: err.message,
+    });
+  }
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      message: "User account permanently deleted successfully",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Server error while deleting user",
       error: err.message,
     });
   }

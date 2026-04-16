@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,48 +12,60 @@ import {
   Banknote,
   Tag,
   Eye,
+  ChevronDown
 } from "lucide-react";
 import api from "../../../utils/api";
 import { toast } from "react-toastify";
+import { useDispatch, useSelector } from "react-redux";
+import { setGlobalLoading } from "../../store/slices/loadingSlice";
+
 
 const OrderInfo = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { isLoading } = useSelector((state) => state.loading);
   const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [newStatus, setNewStatus] = useState("");
+
+  const statusDropdownRef = useRef(null);
   const [productPage, setProductPage] = useState(1);
   const productsPerPage = 5;
 
   const fetchOrderDetails = async () => {
     try {
-      setLoading(true);
+      dispatch(setGlobalLoading(true));
+
+
       const res = await api.get(`/orderstatus/${id}`);
       setOrder(res.data.data);
-      setNewStatus(res.data.data.status);
     } catch (err) {
       toast.error("Failed to load order details");
     } finally {
-      setLoading(false);
+      dispatch(setGlobalLoading(false));
     }
   };
 
-  const handleUpdateStatus = async () => {
-    try {
-      setUpdating(true);
-      await api.post(`/orderstatus`, { orderId: id, status: newStatus });
-      toast.success("Order status updated!");
-      fetchOrderDetails();
-    } catch (err) {
-      toast.error("Failed to update status");
-    } finally {
-      setUpdating(false);
-    }
-  };
+
+
+
+
+
+
+
 
   useEffect(() => {
     fetchOrderDetails();
   }, [id]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) {
+        setIsStatusOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const getStatusStyle = (status) => {
     switch (status?.toLowerCase()) {
@@ -71,15 +83,8 @@ const OrderInfo = () => {
     }
   };
 
-  if (loading)
-    return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <RefreshCw size={40} className="text-indigo-600 animate-spin mb-4" />
-        <p className="text-slate-500 font-bold">
-          Fetching order information...
-        </p>
-      </div>
-    );
+
+  if (isLoading && !order) return <div className="min-h-[600px]"></div>;
 
   if (!order)
     return (
@@ -96,15 +101,15 @@ const OrderInfo = () => {
     order.createdBy?.firstname?.charAt(0)?.toUpperCase() || "U";
 
   return (
-    <div className="max-w-screen mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-screen  space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link
-            to="/admin/orders"
+          <button
+            onClick={() => navigate(-1)}
             className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all border border-transparent hover:border-slate-200"
           >
             <ChevronLeft size={24} />
-          </Link>
+          </button>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
               Order  #{order._id?.slice(-8).toUpperCase()}
@@ -114,35 +119,12 @@ const OrderInfo = () => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-200">
+        <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200">
           <span
-            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${getStatusStyle(order.status)}`}
+            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest ${getStatusStyle(order.status)}`}
           >
             {order.status}
           </span>
-          <select
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value)}
-            className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
-          >
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <button
-            onClick={handleUpdateStatus}
-            disabled={updating || newStatus === order.status}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 active:scale-95"
-          >
-            {updating ? (
-              <RefreshCw className="animate-spin" size={16} />
-            ) : (
-              "Update"
-            )}
-          </button>
         </div>
       </div>
 
@@ -169,60 +151,60 @@ const OrderInfo = () => {
                   {order.products
                     ?.slice((productPage - 1) * productsPerPage, productPage * productsPerPage)
                     .map((item, i) => (
-                    <tr key={item._id || i} className="group text-sm hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 p-1 overflow-hidden">
-                            {item.product?.image?.[0] ? (
-                              <img
-                                src={`${import.meta.env.VITE_BASE_URL}${item.product.image[0]}`}
-                                className="max-h-full object-contain"
-                              />
-                            ) : (
-                              <Package size={16} className="text-slate-300" />
-                            )}
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-800 block">
-                              {item.product?.name || "Deleted Product"}
-                            </span>
-                            {item.product?.description && (
-                              <span className="text-[10px] text-slate-400 font-medium line-clamp-1 max-w-xs block">
-                                {item.product.description}
+                      <tr key={item._id || i} className="group text-sm hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 p-1 overflow-hidden">
+                              {item.product?.image?.[0] ? (
+                                <img
+                                  src={`${import.meta.env.VITE_BASE_URL}${item.product.image[0]}`}
+                                  className="max-h-full object-contain"
+                                />
+                              ) : (
+                                <Package size={16} className="text-slate-300" />
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-800 block">
+                                {item.product?.name || "Deleted Product"}
                               </span>
-                            )}
+                              {item.product?.description && (
+                                <span className="text-[10px] text-slate-400 font-medium line-clamp-1 max-w-xs block">
+                                  {item.product.description}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-4 text-center">
-                        {item.product?.category?.name && (
-                          <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-tight">
-                            {item.product.category.name}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-4 text-center font-bold text-slate-600">
-                        {item.quantity}
-                      </td>
-                      <td className="py-4 text-right font-bold text-slate-600">
-                        ₹{item.price}
-                      </td>
-                      <td className="py-4 text-right font-black text-slate-900">
-                        ₹{(item.price * item.quantity).toFixed(2)}
-                      </td>
-                      <td className="py-4 text-right pr-2">
-                        {item.product?._id && (
-                          <Link
-                            to={`/admin/products/info/${item.product._id}`}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 inline-flex items-center justify-center"
-                            title="View Product Details"
-                          >
-                            <Eye size={16} />
-                          </Link>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="py-4 text-center">
+                          {item.product?.category?.name && (
+                            <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-bold uppercase tracking-tight">
+                              {item.product.category.name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-4 text-center font-bold text-slate-600">
+                          {item.quantity}
+                        </td>
+                        <td className="py-4 text-right font-bold text-slate-600">
+                          ${item.price}
+                        </td>
+                        <td className="py-4 text-right font-black text-slate-900">
+                          ${(item.price * item.quantity).toFixed(2)}
+                        </td>
+                        <td className="py-4 text-right pr-2">
+                          {item.product?._id && (
+                            <Link
+                              to={`/admin/products/info/${item.product._id}`}
+                              className="p-2 text-slate-400 hover:text-indigo-600 transition-all inline-flex items-center justify-center"
+                              title="View Product Details"
+                            >
+                              <Eye size={18} />
+                            </Link>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -253,39 +235,6 @@ const OrderInfo = () => {
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="admin-card space-y-5">
-            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">
-              Payment Summary
-            </h4>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-slate-500">
-                  Subtotal ({order.products?.length || 0} items)
-                </span>
-                <span className="font-bold text-slate-800">
-                  ₹{order.totalAmount?.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-slate-500">Shipping</span>
-                <span className="font-bold text-emerald-600">Free</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="font-medium text-slate-500">Payment Method</span>
-                <span className="inline-flex items-center gap-1.5 font-bold text-slate-800">
-                  <Banknote size={14} className="text-indigo-600" />
-                  {order.paymentMode || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-slate-100 pt-4 mt-2">
-                <span className="font-black text-slate-900">Total</span>
-                <span className="font-black text-indigo-600 text-lg">
-                  ₹{order.totalAmount?.toFixed(2)}
-                </span>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -352,6 +301,31 @@ const OrderInfo = () => {
                     </p>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-card space-y-6">
+            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center justify-between">
+              <span>Payment Summary</span>
+              <Banknote size={16} className="text-emerald-500" />
+            </h4>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="font-medium text-slate-500">Subtotal</span>
+                <span className="font-bold text-slate-800">${order.totalAmount?.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="font-medium text-slate-500">Shipping</span>
+                <span className="font-bold text-emerald-600">Free</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-100 pt-3 mt-1">
+                <span className="font-black text-slate-900">Amount Paid</span>
+                <span className="font-black text-indigo-600 text-base">${order.totalAmount?.toFixed(2)}</span>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-3 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Via</span>
+                <span className="text-xs font-bold text-slate-700 uppercase">{order.paymentMode || "N/A"}</span>
               </div>
             </div>
           </div>

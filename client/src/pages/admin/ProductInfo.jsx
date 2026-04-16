@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft,
   Package,
@@ -11,19 +11,31 @@ import {
   ShieldCheck,
   ShieldAlert,
   Edit2,
+  ChevronDown,
   Image as ImageIcon
 } from 'lucide-react';
 import api from '../../../utils/api';
 import { toast } from 'react-toastify';
+import { useDispatch, useSelector } from 'react-redux';
+import { setGlobalLoading } from '../../store/slices/loadingSlice';
+
+
 
 const ProductInfo = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { isLoading } = useSelector((state) => state.loading);
   const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+
+
+
 
   const fetchProductDetails = async () => {
     try {
-      setLoading(true);
+      dispatch(setGlobalLoading(true));
+
+
       const res = await api.get(`/product/${id}`);
       if (res.data.success) {
         setProduct(res.data.data);
@@ -31,7 +43,7 @@ const ProductInfo = () => {
     } catch (err) {
       toast.error("Failed to load product details");
     } finally {
-      setLoading(false);
+      dispatch(setGlobalLoading(false));
     }
   };
 
@@ -39,27 +51,23 @@ const ProductInfo = () => {
     fetchProductDetails();
   }, [id]);
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <RefreshCw size={40} className="text-indigo-600 animate-spin mb-4" />
-      <p className="text-slate-500 font-bold">Fetching product data...</p>
-    </div>
-  );
+  if (isLoading && !product) return <div className="min-h-[600px]"></div>;
 
   if (!product) return (
     <div className="text-center py-20 font-bold text-slate-500">
+
       <p>Product not found.</p>
       <Link to="/admin/products" className="text-indigo-600 hover:underline mt-4 inline-block">Back to Catalog</Link>
     </div>
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-screen space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to="/admin/products" className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all border border-transparent hover:border-slate-200">
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-xl text-slate-500 transition-all border border-transparent hover:border-slate-200">
             <ChevronLeft size={24} />
-          </Link>
+          </button>
           <div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">{product.name}</h1>
             <p className="text-slate-500 text-sm font-medium">ID: {product._id?.slice(-8).toUpperCase()}</p>
@@ -115,7 +123,7 @@ const ProductInfo = () => {
                 <p className="text-4xl font-black text-indigo-600">${product.price}</p>
               </div>
             </div>
-            <div className="admin-card space-y-4">
+            {/* <div className="admin-card space-y-4">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Inventory Status</h3>
               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Stock Availability</p>
@@ -124,7 +132,7 @@ const ProductInfo = () => {
                   <span className="text-2xl font-black text-slate-800">{product.isActive ? 'Available' : 'Out of Stock'}</span>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -166,7 +174,7 @@ const ProductInfo = () => {
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Date Created</p>
                   <p className="text-sm font-bold text-slate-800">{new Date(product.createdAt).toLocaleDateString()}</p>
-                  
+
                 </div>
               </div>
 

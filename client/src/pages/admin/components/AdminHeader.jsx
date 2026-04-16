@@ -5,7 +5,6 @@ const AdminHeader = ({ isCollapsed, setIsCollapsed }) => {
   return (
     <header className={`h-20 border-b border-slate-200 bg-white/95 backdrop-blur-xl fixed top-0 right-0 z-40 px-4 md:px-8 flex items-center justify-between transition-all duration-300 ${isCollapsed ? 'left-0 lg:left-20' : 'left-0 lg:left-64'}`}>
       <div className="flex items-center gap-4">
-        {/* Hamburger Menu Toggle */}
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"

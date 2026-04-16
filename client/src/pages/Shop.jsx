@@ -1,4 +1,13 @@
-import { Search, Filter, ShoppingCart, Minus, Plus, RefreshCw, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  Search,
+  Filter,
+  ShoppingCart,
+  Minus,
+  Plus,
+  RefreshCw,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -15,7 +24,9 @@ const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const dispatch = useDispatch();
-  const { items: cart, loading: cartLoading } = useSelector((state) => state.cart);
+  const { items: cart, loading: cartLoading } = useSelector(
+    (state) => state.cart,
+  );
   const { isAuthenticated: isLoggedIn } = useSelector((state) => state.auth);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
@@ -106,13 +117,14 @@ const Shop = () => {
 
   const increaseQty = async (product) => {
     try {
+      let response;
       if (isLoggedIn) {
-        await api.post(`users/cart/${product.id}`, { quantity: 1 });
+        response = await api.post(`users/cart/${product.id}`, { quantity: 1 });
       }
       dispatch(addToCart(product));
       toast.success("Added to cart");
     } catch (err) {
-      toast.error("Failed to add to cart");
+      toast.error(err.response?.data?.message || "Failed to add to cart");
     }
   };
 
@@ -140,7 +152,9 @@ const Shop = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
             <nav className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">
-              <Link to="/" className="hover:text-indigo-600 transition-colors">Home</Link>
+              <Link to="/" className="hover:text-indigo-600 transition-colors">
+                Home
+              </Link>
               <ChevronRight size={12} strokeWidth={3} />
               <span className="text-indigo-600">Shop</span>
             </nav>
@@ -151,7 +165,10 @@ const Shop = () => {
 
           <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
             <div className="relative group flex-grow md:w-80">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors"
+                size={18}
+              />
               <input
                 type="text"
                 placeholder="Search products..."
@@ -167,10 +184,16 @@ const Shop = () => {
                 className="flex items-center justify-between w-full sm:w-48 h-12 bg-white border border-slate-200 px-5 rounded-2xl text-left capitalize text-sm font-bold text-slate-700 hover:border-indigo-500 transition-colors group"
               >
                 <span className="flex items-center gap-2">
-                  <Filter size={16} className="text-slate-400 group-hover:text-indigo-600" />
+                  <Filter
+                    size={16}
+                    className="text-slate-400 group-hover:text-indigo-600"
+                  />
                   {selectedCategory === "All" ? "Categories" : selectedCategory}
                 </span>
-                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isCategoryOpen ? "rotate-180" : ""}`} />
+                <ChevronDown
+                  size={16}
+                  className={`text-slate-400 transition-transform duration-200 ${isCategoryOpen ? "rotate-180" : ""}`}
+                />
               </button>
 
               {isCategoryOpen && (
@@ -187,10 +210,11 @@ const Shop = () => {
                         }
                         setIsCategoryOpen(false);
                       }}
-                      className={`block w-full text-left px-4 py-3 rounded-xl capitalize text-sm font-bold transition-all ${selectedCategory === category
-                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                        : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
-                        }`}
+                      className={`block w-full text-left px-4 py-3 rounded-xl capitalize text-sm font-bold transition-all ${
+                        selectedCategory === category
+                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+                          : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                      }`}
                     >
                       {category}
                     </button>
@@ -204,7 +228,10 @@ const Shop = () => {
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-white rounded-[32px] p-4 border border-slate-100 h-[420px] animate-pulse">
+              <div
+                key={i}
+                className="bg-white rounded-[32px] p-4 border border-slate-100 h-[420px] animate-pulse"
+              >
                 <div className="h-48 bg-slate-100 rounded-2xl mb-6"></div>
                 <div className="h-4 bg-slate-100 rounded w-1/3 mb-4"></div>
                 <div className="h-6 bg-slate-100 rounded w-3/4 mb-4"></div>
@@ -288,13 +315,22 @@ const Shop = () => {
                   onClick={() => setPage((prev) => prev - 1)}
                   className="p-3 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-600 disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-all font-bold group"
                 >
-                  <ChevronRight size={20} className="rotate-180 group-hover:-translate-x-1 transition-transform" />
+                  <ChevronRight
+                    size={20}
+                    className="rotate-180 group-hover:-translate-x-1 transition-transform"
+                  />
                 </button>
 
                 <div className="flex items-center gap-2 bg-white px-5 py-2.5 rounded-xl border border-slate-200">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Page</span>
-                  <span className="text-sm font-black text-indigo-600">{page}</span>
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">of {totalPages}</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    Page
+                  </span>
+                  <span className="text-sm font-black text-indigo-600">
+                    {page}
+                  </span>
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                    of {totalPages}
+                  </span>
                 </div>
 
                 <button
@@ -302,7 +338,10 @@ const Shop = () => {
                   onClick={() => setPage((prev) => prev + 1)}
                   className="p-3 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-600 disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-all font-bold group"
                 >
-                  <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                  <ChevronRight
+                    size={20}
+                    className="group-hover:translate-x-1 transition-transform"
+                  />
                 </button>
               </div>
             )}
@@ -312,12 +351,13 @@ const Shop = () => {
             <div className="w-20 h-20 bg-slate-50 flex items-center justify-center rounded-3xl text-slate-300 mb-8">
               <RefreshCw size={40} className="animate-spin-slow" />
             </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">No results found</h2>
-            <p className="text-slate-500 font-medium mb-8">Try adjusting your filters or search terms.</p>
-            <button
-              onClick={handleReset}
-              className="btn-secondary"
-            >
+            <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">
+              No results found
+            </h2>
+            <p className="text-slate-500 font-medium mb-8">
+              Try adjusting your filters or search terms.
+            </p>
+            <button onClick={handleReset} className="btn-secondary">
               Clear All Filters
             </button>
           </div>
