@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback,useRef } from 'react';
-import { Layers, Edit2, Trash2, Plus, Search, RefreshCw, ChevronLeft, ChevronRight,ChevronDown, Package, X } from 'lucide-react';
+import  { useState, useEffect, useCallback, useRef } from 'react';
+import { Layers, Edit2, Trash2, Plus, Search, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, Package, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../../utils/api';
 import { toast } from 'react-toastify';
@@ -16,8 +16,6 @@ const Categories = () => {
   const [categories, setCategories] = useState(null);
   const [loadedMeta, setLoadedMeta] = useState({ page: 1, limit: 10, total: 0 });
 
-
-
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
   const [page, setPage] = useState(parseInt(searchParams.get("page"), 10) || 1);
   const [limit, setLimit] = useState(parseInt(searchParams.get("limit"), 10) || 10);
@@ -28,8 +26,13 @@ const Categories = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('add');
-  const [formData, setFormData] = useState({ id: null, name: '', slug: '' });
+  const [formData, setFormData] = useState({});
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { schemas } = useSelector((state) => state.formSchema);
+  const categorySchema = schemas?.category;
+  const fields = categorySchema?.fields || [];
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -100,19 +103,30 @@ const Categories = () => {
 
   const openAddModal = () => {
     setModalMode('add');
-    setFormData({ id: null, name: '', slug: '' });
+    const initialData = { id: null };
+    fields.forEach(field => {
+      initialData[field.name] = field.defaultValue || '';
+    });
+    setFormData(initialData);
+    setErrors({});
     setIsModalOpen(true);
   };
 
   const openEditModal = (cat) => {
     setModalMode('edit');
-    setFormData({ id: cat._id, name: cat.name, slug: cat.slug });
+    const editData = { id: cat._id };
+    fields.forEach(field => {
+      editData[field.name] = cat[field.name] || '';
+    });
+    setFormData(editData);
+    setErrors({});
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
-    setFormData({ id: null, name: '', slug: '' });
+    setFormData({ id: null });
+    setErrors({});
   };
 
   const handleDelete = async (id) => {
@@ -131,21 +145,36 @@ const Categories = () => {
   };
 
 
+  const validateForm = () => {
+    const newErrors = {};
+    fields.forEach(field => {
+      const value = formData[field.name];
+      const validation = field.validation || {};
+      if (validation.required && (!value || value === '')) {
+        newErrors[field.name] = validation.errorMessage || `${field.label} is required`;
+      }
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.slug) {
-      toast.error("Please fill in all fields");
+    if (!validateForm()) {
+      toast.error("Please fix the errors in the form");
       return;
     }
 
     dispatch(setGlobalLoading(true));
     try {
+      const submissionData = { ...formData };
+      delete submissionData.id;
 
       if (modalMode === 'add') {
-        await api.post("/category", { name: formData.name, slug: formData.slug });
+        await api.post("/category", submissionData);
         toast.success("Category added successfully");
       } else {
-        await api.put("/category", { categoryId: formData.id, name: formData.name, slug: formData.slug });
+        await api.put("/category", { categoryId: formData.id, ...submissionData });
         toast.success("Category updated successfully");
       }
       closeModal();
@@ -157,15 +186,113 @@ const Categories = () => {
     }
   };
 
+  const handleInputChange = (e) => {
+    const { name, value, type, checked, files } = e.target;
+    let newValue;
 
+    if (type === 'file') {
+      newValue = files[0];
+    } else if (type === 'checkbox') {
+      newValue = checked;
+    } else {
+      newValue = value;
+    }
 
-  const handleNameChange = (e) => {
-    const val = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      name: val,
-      slug: modalMode === 'add' ? val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') : prev.slug
-    }));
+    setFormData(prev => {
+      const updated = { ...prev, [name]: newValue };
+
+      // Auto-slug logic specifically for name field in add mode
+      if (name === 'name' && modalMode === 'add' && fields.find(f => f.name === 'slug')) {
+        updated.slug = newValue.toString().toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '');
+      }
+      return updated;
+    });
+
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrs = { ...prev };
+        delete newErrs[name];
+        return newErrs;
+      });
+    }
+  };
+
+  const renderInput = (field) => {
+    const commonProps = {
+      name: field.name,
+      value: (field.type !== 'file' && field.type !== 'checkbox') ? formData[field.name] || '' : undefined,
+      onChange: handleInputChange,
+      placeholder: field.placeholder,
+      className: `w-full px-4 py-3 bg-slate-50 border ${errors[field.name] ? 'border-rose-400 focus:border-rose-500 ring-rose-50' : 'border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10'} rounded-xl focus:outline-none transition-all font-medium text-slate-900`
+    };
+
+    if (field.type === 'textarea') {
+      return (
+        <textarea {...commonProps} rows="4" className={commonProps.className + " resize-none"} />
+      );
+    }
+
+    if (field.type === 'select') {
+      const options = field.options || [];
+      return (
+        <div className="relative">
+          <select {...commonProps} className={commonProps.className + " appearance-none cursor-pointer"}>
+            <option value="">{field.placeholder || "Select Option"}</option>
+            {options.map(opt => (
+              <option key={opt.value || opt} value={opt.value || opt}>{opt.label || opt}</option>
+            ))}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <ChevronDown size={18} />
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'radio') {
+      const options = field.options || [];
+      return (
+        <div className="flex flex-wrap gap-4 p-3 bg-slate-50/50 rounded-xl border border-slate-100">
+          {options.map(opt => (
+            <label key={opt.value || opt} className="flex items-center gap-2 cursor-pointer group">
+              <input
+                type="radio"
+                name={field.name}
+                value={opt.value || opt}
+                checked={formData[field.name] == (opt.value || opt)}
+                onChange={handleInputChange}
+                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500 border-slate-300"
+              />
+              <span className="text-sm font-medium text-slate-600 group-hover:text-indigo-600 transition-colors">{opt.label || opt}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    if (field.type === 'checkbox') {
+      return (
+        <label className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-xl border border-slate-200 hover:bg-white hover:border-indigo-200 transition-all cursor-pointer group">
+          <input
+            type="checkbox"
+            name={field.name}
+            checked={!!formData[field.name]}
+            onChange={handleInputChange}
+            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-sm font-bold text-slate-600 group-hover:text-indigo-600 transition-colors">{field.placeholder || field.label}</span>
+        </label>
+      );
+    }
+
+    return (
+      <input
+        {...commonProps}
+        type={field.type}
+      />
+    );
   };
 
   return (
@@ -311,11 +438,10 @@ const Categories = () => {
                                   setPage(1);
                                   setIsLimitOpen(false);
                                 }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                                  limit === val
+                                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-all ${limit === val
                                     ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
                                     : 'text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'
-                                }`}
+                                  }`}
                               >
                                 {val}
                               </button>
@@ -324,16 +450,16 @@ const Categories = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="h-4 w-[1px] bg-slate-300 flex-shrink-0 lg:hidden" />
-                    
+
                     <div className="flex-shrink-0 lg:hidden">
                       <p className="text-[10px] sm:text-xs text-slate-500 font-medium tracking-tight whitespace-nowrap">
                         Showing <span className="text-slate-900 font-bold">{(loadedMeta.page - 1) * loadedMeta.limit + 1}-{Math.min(loadedMeta.page * loadedMeta.limit, loadedMeta.total)}</span> of <span className="text-slate-900 font-bold">{loadedMeta.total}</span> <span className="text-slate-900 font-bold">categories</span>
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="hidden lg:flex items-center justify-center">
                     <p className="text-sm text-slate-500 font-medium tracking-tight text-center">
                       Showing <span className="text-slate-900 font-bold">{(loadedMeta.page - 1) * loadedMeta.limit + 1}-{Math.min(loadedMeta.page * loadedMeta.limit, loadedMeta.total)}</span> of <span className="text-slate-900 font-bold">{loadedMeta.total}</span> categories
@@ -386,34 +512,19 @@ const Categories = () => {
             </div>
 
             <form onSubmit={handleFormSubmit} className="p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  Category Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={handleNameChange}
-                  placeholder="e.g. Electronics"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">
-                  URL Slug
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="e.g. electronics"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-900"
-                />
-                <p className="text-xs text-slate-500 mt-2 font-medium">The URL friendly name for this category.</p>
-              </div>
+              {fields.map(field => (
+                <div key={field.name}>
+                  {field.type !== 'checkbox' && (
+                    <label className="flex justify-between items-center text-sm font-bold text-slate-700 mb-2">
+                      {field.label}
+                      {errors[field.name] && <span className="text-[10px] text-rose-500 font-black uppercase tracking-tight italic">{errors[field.name]}</span>}
+                    </label>
+                  )}
+                  {renderInput(field)}
+                  {field.name === 'slug' && <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-tight">The URL friendly name for this category.</p>}
+                  {field.type === 'checkbox' && errors[field.name] && <p className="text-[10px] text-rose-500 font-black uppercase tracking-tight italic mt-1">{errors[field.name]}</p>}
+                </div>
+              ))}
 
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button

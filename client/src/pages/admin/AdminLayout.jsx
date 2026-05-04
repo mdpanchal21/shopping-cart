@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import AdminSidebar from './components/AdminSidebar';
 import AdminHeader from './components/AdminHeader';
 
 
 const AdminLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const dispatch = useDispatch();
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-500/30">

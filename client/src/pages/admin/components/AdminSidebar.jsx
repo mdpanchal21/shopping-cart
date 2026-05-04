@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { setLogout } from "../../../store/slices/authSlice";
+import { clearSchemas } from "../../../store/slices/formSchemaSlice";
 import api from "../../../../utils/api";
 import { toast } from "react-toastify";
 import {
@@ -22,11 +23,13 @@ const AdminSidebar = ({ isCollapsed, setIsCollapsed }) => {
     try {
       await api.post("/auth/logout");
       dispatch(setLogout());
+      dispatch(clearSchemas());
       toast.success("Logged out successfully");
       navigate("/");
     } catch (err) {
       toast.error("Logout failed");
       dispatch(setLogout());
+      dispatch(clearSchemas());
       navigate("/");
     }
   };

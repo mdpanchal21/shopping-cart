@@ -11,6 +11,7 @@ const userOrderRoutes = require("./routes/user.order.routes");
 const orderRoutes = require("./routes/order.routes");
 const adminUserRoutes = require("./routes/users.route");
 const passwordRoutes = require("./routes/password.routes");
+const formSchemaRoutes = require("./routes/formSchema.routes");
 
 router.use("/auth", authRoutes);
 router.use("/product", productRoutes);
@@ -22,5 +23,6 @@ router.use("/order", userOrderRoutes);
 router.use("/orderstatus", orderRoutes);
 router.use("/admin/user", adminUserRoutes);
 router.use("/password", passwordRoutes);
+router.use("/form-schema", formSchemaRoutes);
 
 module.exports = router;

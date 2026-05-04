@@ -5,6 +5,7 @@ import api from '../../../utils/api';
 import { toast } from 'react-toastify';
 import { useDispatch, useSelector } from 'react-redux';
 import { setGlobalLoading } from '../../store/slices/loadingSlice';
+import { X, Image as ImageIcon, Plus } from 'lucide-react';
 
 
 
@@ -22,17 +23,32 @@ const UserInfo = () => {
   const [isRoleOpen, setIsRoleOpen] = useState(false);
   const roleDropdownRef = useRef(null);
 
-  const [formData, setFormData] = useState({
-    firstname: '',
-    lastname: '',
-    email: '',
-    role: '',
-    isActive: true,
-    address: {
-      home: { street: '', city: '', state: '', zipcode: '', country: '' },
-      office: { street: '', city: '', state: '', zipcode: '', country: '' }
+  const { schemas, loading: schemaLoading } = useSelector((state) => state.formSchema);
+  const profileSchema = schemas?.profile;
+  const fields = profileSchema?.fields || [];
+
+  const [formData, setFormData] = useState({});
+  const [filePreviews, setFilePreviews] = useState({});
+  const [errors, setErrors] = useState({});
+
+  // Helper to get nested value by path
+  const getValueByPath = (obj, path) => {
+    if (!path || !obj) return undefined;
+    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+  };
+
+  // Helper to set nested value by path
+  const setValueByPath = (obj, path, value) => {
+    const parts = path.split('.');
+    const newObj = { ...obj };
+    let current = newObj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      current[parts[i]] = { ...current[parts[i]] };
+      current = current[parts[i]];
     }
-  });
+    current[parts[parts.length - 1]] = value;
+    return newObj;
+  };
 
   const fetchUserDetails = async () => {
     try {
@@ -41,17 +57,25 @@ const UserInfo = () => {
       const res = await api.get(`/admin/user/${id}`);
       const userData = res.data.data;
       setUser(userData);
-      setFormData({
-        firstname: userData.firstname || '',
-        lastname: userData.lastname || '',
-        email: userData.email || '',
-        role: userData.role || 'user',
-        isActive: userData.isActive !== false,
-        address: {
-          home: userData.address?.home || { street: '', city: '', state: '', zipcode: '', country: '' },
-          office: userData.address?.office || { street: '', city: '', state: '', zipcode: '', country: '' }
+      
+      // Initialize form data from user data using schema fields
+      const initialData = {};
+      fields.forEach(field => {
+        let value = getValueByPath(userData, field.name);
+        
+        // Intelligent fallback for address fields if specifically pathing to a 'fullAddress' string
+        if (field.name.includes('address') && !value) {
+            const baseDir = field.name.split('.').slice(0, 2).join('.'); // e.g., 'address.home'
+            const baseObj = getValueByPath(userData, baseDir);
+            if (baseObj && typeof baseObj === 'object') {
+                const parts = [baseObj.street, baseObj.city, baseObj.state, baseObj.zipcode, baseObj.country].filter(Boolean);
+                if (parts.length > 0) value = parts.join(', ');
+            }
         }
+
+        initialData[field.name] = value !== undefined ? value : (field.defaultValue !== undefined ? field.defaultValue : '');
       });
+      setFormData(initialData);
     } catch (err) {
       toast.error("Failed to load user details");
       navigate("/admin/users");
@@ -75,18 +99,78 @@ const UserInfo = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleInputChange = (e) => {
+    const { name, value, type, checked, files } = e.target;
+
+    if (type === 'file') {
+      const file = files[0];
+      if (file) {
+        setFormData(prev => ({ ...prev, [name]: file }));
+        setFilePreviews(prev => ({ ...prev, [name]: URL.createObjectURL(file) }));
+      }
+    } else if (type === 'checkbox') {
+      setFormData(prev => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const removeFile = (fieldName) => {
+    setFormData(prev => ({ ...prev, [fieldName]: null }));
+    setFilePreviews(prev => {
+      const newPreviews = { ...prev };
+      delete newPreviews[fieldName];
+      return newPreviews;
+    });
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    fields.forEach(field => {
+      const value = formData[field.name];
+      const validation = field.validation || {};
+
+      if (validation.required && (value === undefined || value === null || value === '' || value === false)) {
+        newErrors[field.name] = validation.errorMessage || `${field.label} is required`;
+      }
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleUpdate = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return toast.error("Please fix the errors in the form");
+
     try {
       dispatch(setGlobalLoading(true));
 
+      const submissionData = new FormData();
+      fields.forEach(field => {
+        const value = formData[field.name];
+        if (value !== null && value !== undefined) {
+          submissionData.append(field.name, value);
+        }
+      });
 
-      await api.patch(`/admin/user/${id}`, formData);
+      await api.patch(`/admin/user/${id}`, submissionData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
       toast.success("User updated successfully!");
       setIsEditing(false);
       fetchUserDetails();
     } catch (err) {
-      toast.error("Failed to update user");
+      toast.error(err.response?.data?.message || "Failed to update user");
     } finally {
       dispatch(setGlobalLoading(false));
     }
@@ -113,18 +197,106 @@ const UserInfo = () => {
 
   const handleCancel = () => {
     setIsEditing(false);
-    setFormData({
-      firstname: user?.firstname || '',
-      lastname: user?.lastname || '',
-      email: user?.email || '',
-      role: user?.role || 'user',
-      isActive: user?.isActive !== false,
-      address: {
-        home: user?.address?.home || { street: '', city: '', state: '', zipcode: '', country: '' },
-        office: user?.address?.office || { street: '', city: '', state: '', zipcode: '', country: '' }
-      }
+    
+    // Restore form data from current user state using schema fields
+    const initialData = {};
+    fields.forEach(field => {
+      const value = getValueByPath(user, field.name);
+      initialData[field.name] = value !== undefined ? value : (field.defaultValue !== undefined ? field.defaultValue : '');
     });
+    setFormData(initialData);
+    setFilePreviews({});
+    setErrors({});
   };
+
+  const renderInput = (field) => {
+    const commonProps = {
+      name: field.name,
+      value: (field.type !== 'file' && field.type !== 'checkbox') ? formData[field.name] || '' : undefined,
+      onChange: handleInputChange,
+      placeholder: field.placeholder,
+      className: `w-full bg-slate-50 border ${errors[field.name] ? 'border-rose-400 focus:border-rose-500 ring-rose-50' : 'border-slate-200 focus:border-indigo-500 transition-all font-sans'} rounded-lg py-1.5 px-3 text-xs font-bold text-slate-900 focus:outline-none`
+    };
+
+    if (field.type === 'textarea') {
+      return <textarea {...commonProps} rows="3" className={commonProps.className + " resize-none"} />;
+    }
+
+    if (field.type === 'select') {
+      const options = field.options || [];
+      return (
+        <div className="relative">
+          <select {...commonProps} className={commonProps.className + " appearance-none cursor-pointer"}>
+            <option value="">{field.placeholder || "Select Option"}</option>
+            {options.map(opt => (
+              <option key={opt.value || opt} value={opt.value || opt}>{opt.label || opt}</option>
+            ))}
+            {/* Fallback for role if not in options */}
+            {field.name === 'role' && !options.length && (
+              <>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </>
+            )}
+          </select>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+            <ChevronDown size={14} />
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'checkbox') {
+      return (
+        <div className="flex items-center h-[36px] gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3">
+          <input
+            type="checkbox"
+            name={field.name}
+            checked={!!formData[field.name]}
+            onChange={handleInputChange}
+            className="w-3.5 h-3.5 text-indigo-600 rounded cursor-pointer"
+          />
+          <span className="text-xs font-bold text-slate-700">{field.placeholder || "Enable"}</span>
+        </div>
+      );
+    }
+
+    if (field.type === 'file') {
+      return (
+        <div className="space-y-4">
+          {filePreviews[field.name] ? (
+             <div className="relative group w-32 h-32 rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                <img src={filePreviews[field.name]} alt="Preview" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removeFile(field.name)}
+                  className="absolute top-1 right-1 p-1 bg-white/90 backdrop-blur rounded-lg text-rose-600 shadow-sm active:scale-90"
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
+             </div>
+          ) : (
+            <label className="w-full h-24 rounded-xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all cursor-pointer group">
+              <ImageIcon size={20} className="group-hover:text-indigo-600 transition-colors" />
+              <span className="text-[10px] font-black mt-2 uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">{field.placeholder || "Upload Image"}</span>
+              <input type="file" className="hidden" name={field.name} onChange={handleInputChange} accept="image/*" />
+            </label>
+          )}
+        </div>
+      );
+    }
+
+    return <input {...commonProps} type={field.type} />;
+  };
+
+  if (schemaLoading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
+        <RefreshCw size={40} className="animate-spin text-indigo-600" />
+        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Hydrating Form Configurations...</p>
+      </div>
+    );
+  }
 
   if (isLoading && !user) return <div className="min-h-[400px] flex items-center justify-center"></div>;
 
@@ -153,11 +325,52 @@ const UserInfo = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="space-y-6">
           <div className="admin-card text-center p-5 overflow-hidden">
-            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl font-black border-2 border-indigo-100 mx-auto mb-3 shadow-xl shadow-indigo-500/10 overflow-hidden">
-              {user?.avatar ? (
-                <img src={`${import.meta.env.VITE_BASE_URL}/${user.avatar}`} alt={fullName} className="w-full h-full object-cover" />
+            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl font-black border-2 border-indigo-100 mx-auto mb-3 shadow-xl shadow-indigo-500/10 overflow-hidden relative group">
+              {isEditing ? (
+                <div className="w-full h-full relative group/avatar">
+                  {fields.filter(f => f.name === 'avatar').map(field => (
+                    <div key={field.name} className="w-full h-full">
+                      {filePreviews[field.name] ? (
+                        <div className="relative w-full h-full">
+                          <img src={filePreviews[field.name]} alt="Preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => removeFile(field.name)}
+                            className="absolute top-0.5 right-0.5 p-1 bg-white/90 backdrop-blur rounded-lg text-rose-600 shadow-sm z-10 active:scale-90"
+                          >
+                            <X size={10} strokeWidth={3} />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="w-full h-full flex flex-col items-center justify-center relative transition-all cursor-pointer overflow-hidden">
+                          {user?.avatar ? (
+                            <img src={`${import.meta.env.VITE_BASE_URL}/${user.avatar}`} alt={fullName} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-indigo-600">{userInitial}</span>
+                          )}
+                          <div className="absolute inset-0 bg-indigo-600/60 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                            <ImageIcon size={20} className="text-white" />
+                          </div>
+                          <input type="file" className="hidden" name={field.name} onChange={handleInputChange} accept="image/*" />
+                        </label>
+                      )}
+                    </div>
+                  ))}
+                  {/* Fallback display if no avatar field defined in schema */}
+                  {!fields.find(f => f.name === 'avatar') && (
+                     user?.avatar ? (
+                        <img src={`${import.meta.env.VITE_BASE_URL}/${user.avatar}`} alt={fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        userInitial
+                      )
+                  )}
+                </div>
               ) : (
-                userInitial
+                user?.avatar ? (
+                  <img src={`${import.meta.env.VITE_BASE_URL}/${user.avatar}`} alt={fullName} className="w-full h-full object-cover" />
+                ) : (
+                  userInitial
+                )
               )}
             </div>
             <h2 className="text-lg font-black text-slate-900 truncate uppercase tracking-tight">{fullName}</h2>
@@ -206,33 +419,61 @@ const UserInfo = () => {
           <div className="admin-card space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Saved Addresses</h3>
             <div className="grid grid-cols-1 gap-4">
-              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <MapPin size={18} className="text-indigo-600 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-3 p-4 bg-white/60 rounded-2xl border border-slate-100 shadow-sm">
+                <MapPin size={18} className="text-indigo-600 mt-1 shrink-0" />
                 <div className="flex-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block mb-1">Home</span>
-                  {user?.address?.home && formatAddress(user.address.home) ? (
-                    <p className="text-sm font-medium text-slate-700 leading-relaxed">
-                      {user.address.home.street && <>{user.address.home.street}<br /></>}
-                      {user.address.home.city}{user.address.home.state && `, ${user.address.home.state}`}
-                      {user.address.home.zipcode && ` - ${user.address.home.zipcode}`}
-                    </p>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block mb-1">Home Address</span>
+                  {isEditing ? (
+                    <div className="space-y-1">
+                      {fields.filter(f => f.name === 'address.home.fullAddress').map(field => (
+                        <div key={field.name}>
+                          {renderInput(field)}
+                          {errors[field.name] && <p className="text-[9px] text-rose-500 italic mt-1">{errors[field.name]}</p>}
+                        </div>
+                      ))}
+                      {!fields.find(f => f.name === 'address.home.fullAddress') && (
+                         <p className="text-xs font-bold text-slate-400 italic">No home address field in schema</p>
+                      )}
+                    </div>
                   ) : (
-                    <p className="text-sm font-medium text-slate-400 italic">No home address</p>
+                    user?.address?.home && formatAddress(user.address.home) ? (
+                      <p className="text-sm font-medium text-slate-700 leading-relaxed">
+                        {user.address.home.street && <>{user.address.home.street}<br /></>}
+                        {user.address.home.city}{user.address.home.state && `, ${user.address.home.state}`}
+                        {user.address.home.zipcode && ` - ${user.address.home.zipcode}`}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium text-slate-400 italic">No home address</p>
+                    )
                   )}
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <MapPin size={18} className="text-indigo-600 mt-0.5 shrink-0" />
+              <div className="flex items-start gap-3 p-4 bg-white/60 rounded-2xl border border-slate-100 shadow-sm">
+                <MapPin size={18} className="text-indigo-600 mt-1 shrink-0" />
                 <div className="flex-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block mb-1">Office</span>
-                  {user?.address?.office && formatAddress(user.address.office) ? (
-                    <p className="text-sm font-medium text-slate-700 leading-relaxed">
-                      {user.address.office.street && <>{user.address.office.street}<br /></>}
-                      {user.address.office.city}{user.address.office.state && `, ${user.address.office.state}`}
-                      {user.address.office.zipcode && ` - ${user.address.office.zipcode}`}
-                    </p>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block mb-1">Office Address</span>
+                  {isEditing ? (
+                    <div className="space-y-1">
+                      {fields.filter(f => f.name === 'address.office.fullAddress').map(field => (
+                        <div key={field.name}>
+                          {renderInput(field)}
+                          {errors[field.name] && <p className="text-[9px] text-rose-500 italic mt-1">{errors[field.name]}</p>}
+                        </div>
+                      ))}
+                      {!fields.find(f => f.name === 'address.office.fullAddress') && (
+                         <p className="text-xs font-bold text-slate-400 italic">No office address field in schema</p>
+                      )}
+                    </div>
                   ) : (
-                    <p className="text-sm font-medium text-slate-400 italic">No office address</p>
+                    user?.address?.office && formatAddress(user.address.office) ? (
+                      <p className="text-sm font-medium text-slate-700 leading-relaxed">
+                        {user.address.office.street && <>{user.address.office.street}<br /></>}
+                        {user.address.office.city}{user.address.office.state && `, ${user.address.office.state}`}
+                        {user.address.office.zipcode && ` - ${user.address.office.zipcode}`}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium text-slate-400 italic">No office address</p>
+                    )
                   )}
                 </div>
               </div>
@@ -275,183 +516,53 @@ const UserInfo = () => {
             </div>
 
             {isEditing ? (
-              <form onSubmit={handleUpdate} className="space-y-4 max-w-2xl">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">First Name</label>
-                    <input
-                      type="text"
-                      value={formData.firstname}
-                      onChange={(e) => setFormData({ ...formData, firstname: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition-all font-sans"
-                    />
+              <form onSubmit={handleUpdate} className="space-y-6 max-w-4xl">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Main Information */}
+                  <div className="space-y-6">
+                    {fields.filter(f => 
+                      !['file', 'select', 'checkbox', 'radio'].includes(f.type) && 
+                      !f.name.includes('address')
+                    ).map(field => (
+                      <div key={field.name} className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 flex justify-between">
+                          {field.label}
+                          {errors[field.name] && <span className="text-rose-500 lowercase italic font-bold">{errors[field.name]}</span>}
+                        </label>
+                        {renderInput(field)}
+                      </div>
+                    ))}
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">Last Name</label>
-                    <input
-                      type="text"
-                      value={formData.lastname}
-                      onChange={(e) => setFormData({ ...formData, lastname: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition-all font-sans"
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">Email Address</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition-all font-sans"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">User Role</label>
-                    <div className="relative" ref={roleDropdownRef}>
-                      <button
-                        type="button"
-                        onClick={() => setIsRoleOpen(!isRoleOpen)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500 flex items-center justify-between cursor-pointer transition-all group min-h-[36px]"
-                      >
-                        <span className="capitalize">{formData.role || "Select Role"}</span>
-                        <ChevronDown
-                          size={14}
-                          className={`text-slate-400 transition-transform duration-200 ${isRoleOpen ? 'rotate-180' : ''}`}
-                        />
-                      </button>
-
-                      {isRoleOpen && (
-                        <div className="absolute top-full mt-2 left-0 z-50 w-full bg-white border border-slate-100 rounded-2xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-200 origin-top">
-                          {["user", "admin"].map((role) => (
-                            <button
-                              key={role}
-                              type="button"
-                              onClick={() => {
-                                setFormData({ ...formData, role: role });
-                                setIsRoleOpen(false);
-                              }}
-                              className={`block w-full text-left px-4 py-2.5 rounded-xl capitalize text-sm font-bold transition-all ${formData.role === role
-                                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                                : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
-                                }`}
-                            >
-                              {role}
-                            </button>
-                          ))}
+                  {/* Classification & Digital Assets (Filtered) */}
+                  <div className="space-y-6">
+                    {/* Classification */}
+                    <div className="space-y-6">
+                      {fields.filter(f => ['select', 'checkbox', 'radio'].includes(f.type)).map(field => (
+                        <div key={field.name} className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 flex justify-between">
+                            {field.label}
+                            {errors[field.name] && <span className="text-rose-500 lowercase italic font-bold">{errors[field.name]}</span>}
+                          </label>
+                          {renderInput(field)}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">Account Status</label>
-                    <div className="flex items-center h-[36px] gap-3 bg-slate-50 border border-slate-200 rounded-lg px-3">
-                      <input
-                        type="checkbox"
-                        checked={formData.isActive}
-                        onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                        className="w-3.5 h-3.5 text-indigo-600 rounded cursor-pointer"
-                      />
-                      <span className="text-xs font-bold text-slate-700">Account Active</span>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Edit Saved Addresses</h4>
-
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1">Home Address</label>
-                    <div className="grid grid-cols-1 gap-2.5">
-                      <input
-                        type="text"
-                        placeholder="Street"
-                        value={formData.address.home?.street}
-                        onChange={(e) => setFormData({ ...formData, address: { ...formData.address, home: { ...formData.address.home, street: e.target.value } } })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800 placeholder:text-slate-300"
-                      />
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <input
-                          type="text"
-                          placeholder="City"
-                          value={formData.address.home?.city}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, home: { ...formData.address.home, city: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                        <input
-                          type="text"
-                          placeholder="State"
-                          value={formData.address.home?.state}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, home: { ...formData.address.home, state: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
+                    {/* Digital Assets Section (Only for non-avatar files if any) */}
+                    {fields.filter(f => f.type === 'file' && f.name !== 'avatar').length > 0 && (
+                      <div className="space-y-6">
+                        {fields.filter(f => f.type === 'file' && f.name !== 'avatar').map(field => (
+                          <div key={field.name} className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1 flex justify-between">
+                              {field.label}
+                              {errors[field.name] && <span className="text-rose-500 lowercase italic font-bold">{errors[field.name]}</span>}
+                            </label>
+                            {renderInput(field)}
+                          </div>
+                        ))}
                       </div>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <input
-                          type="text"
-                          placeholder="Zipcode"
-                          value={formData.address.home?.zipcode}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, home: { ...formData.address.home, zipcode: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Country"
-                          value={formData.address.home?.country}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, home: { ...formData.address.home, country: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 pl-1">Office Address</label>
-                    <div className="grid grid-cols-1 gap-2.5">
-                      <input
-                        type="text"
-                        placeholder="Street"
-                        value={formData.address.office?.street}
-                        onChange={(e) => setFormData({ ...formData, address: { ...formData.address, office: { ...formData.address.office, street: e.target.value } } })}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800 placeholder:text-slate-300"
-                      />
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <input
-                          type="text"
-                          placeholder="City"
-                          value={formData.address.office?.city}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, office: { ...formData.address.office, city: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                        <input
-                          type="text"
-                          placeholder="State"
-                          value={formData.address.office?.state}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, office: { ...formData.address.office, state: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <input
-                          type="text"
-                          placeholder="Zipcode"
-                          value={formData.address.office?.zipcode}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, office: { ...formData.address.office, zipcode: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Country"
-                          value={formData.address.office?.country}
-                          onChange={(e) => setFormData({ ...formData, address: { ...formData.address, office: { ...formData.address.office, country: e.target.value } } })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-3 text-xs font-bold text-slate-800"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 

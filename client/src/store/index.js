@@ -3,6 +3,7 @@ import cartReducer from "./slices/cartSlice";
 import authReducer from "./slices/authSlice";
 import categoryReducer from "./slices/categorySlice";
 import loadingReducer from "./slices/loadingSlice";
+import formSchemaReducer from "./slices/formSchemaSlice";
 
 
 export const store = configureStore({
@@ -11,6 +12,7 @@ export const store = configureStore({
     auth: authReducer,
     category: categoryReducer,
     loading: loadingReducer,
+    formSchema: formSchemaReducer,
   },
 });
 
