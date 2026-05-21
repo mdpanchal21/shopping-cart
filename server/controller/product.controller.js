@@ -128,15 +128,35 @@ exports.updateProduct = async (req, res) => {
       }
     });
 
-    let imagePath = [];
-    if (req.files && req.files.length > 0) {
-      imagePath = req.files.map((file) => `/uploads/products/${file.filename}`);
-    } else if (req.file) {
-      imagePath = [`/uploads/products/${req.file.filename}`];
+    let finalImages = [];
+    
+    // 1. Handle Existing Images (the ones the user didn't delete and may have reordered)
+    if (req.body.existingImages) {
+      try {
+        finalImages = JSON.parse(req.body.existingImages);
+      } catch (e) {
+        finalImages = [req.body.existingImages]; // Fallback if not stringified array
+      }
     }
 
-    if (imagePath.length > 0) {
-      updateData.image = imagePath;
+    // 2. Handle New Uploaded Images
+    let newImagePaths = [];
+    if (req.files && req.files.length > 0) {
+      newImagePaths = req.files.map((file) => `/uploads/products/${file.filename}`);
+    } else if (req.file) {
+      newImagePaths = [`/uploads/products/${req.file.filename}`];
+    }
+
+    // Combine them (Existing first, then new)
+    // Note: If the user reordered them on frontend, the `existingImages` array already has the new order.
+    // However, if the user added "New" images and reordered THEM, we need to be careful.
+    // In our current frontend setup, new images are always at the end of the imageGallery.
+    if (newImagePaths.length > 0) {
+      finalImages = [...finalImages, ...newImagePaths];
+    }
+
+    if (finalImages.length > 0) {
+      updateData.image = finalImages;
     }
 
     if (Object.keys(updateData).length === 0) {

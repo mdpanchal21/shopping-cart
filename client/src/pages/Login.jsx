@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import api from "../../utils/api";
 import { setLogin, setRole } from "../store/slices/authSlice";
 import { fetchCart } from "../store/slices/cartSlice";
+import { fetchAllSchemas } from "../store/slices/formSchemaSlice";
 import { Mail, Lock, ArrowRight, ShoppingBag } from "lucide-react";
 
 const Login = () => {
@@ -37,6 +38,10 @@ const Login = () => {
         dispatch(setLogin(accessToken));
         dispatch(setRole(userRole));
         document.cookie = "guest_cart=; path=/; max-age=0";
+        
+        if (userRole === "admin") {
+          dispatch(fetchAllSchemas());
+        }
       }
 
       dispatch(fetchCart());

@@ -7,9 +7,10 @@ import {
   RefreshCw,
   ChevronRight,
   ChevronDown,
+  X
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import api from "../../utils/api";
 import { toast } from "react-toastify";
@@ -22,6 +23,7 @@ const Shop = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const dispatch = useDispatch();
   const { items: cart, loading: cartLoading } = useSelector(
@@ -64,6 +66,7 @@ const Shop = () => {
         image: p.image?.[0]
           ? `${import.meta.env.VITE_BASE_URL}${p.image[0]}`
           : null,
+        allImages: p.image?.map(img => `${import.meta.env.VITE_BASE_URL}${img}`) || [],
         description: p.description,
         category: p.category?.slug,
       }));
@@ -210,11 +213,10 @@ const Shop = () => {
                         }
                         setIsCategoryOpen(false);
                       }}
-                      className={`block w-full text-left px-4 py-3 rounded-xl capitalize text-sm font-bold transition-all ${
-                        selectedCategory === category
-                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
-                          : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
-                      }`}
+                      className={`block w-full text-left px-4 py-3 rounded-xl capitalize text-sm font-bold transition-all ${selectedCategory === category
+                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/20"
+                        : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                        }`}
                     >
                       {category}
                     </button>
@@ -245,7 +247,8 @@ const Shop = () => {
               {products.map((product) => (
                 <div
                   key={product.id}
-                  className="group bg-white rounded-[32px] p-5 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 border border-slate-100 hover:border-indigo-100 flex flex-col"
+                  className="group bg-white rounded-[32px] p-5 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-500 border border-slate-100 hover:border-indigo-100 flex flex-col cursor-pointer"
+                  onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div className="relative h-56 w-full rounded-2xl overflow-hidden mb-6 bg-slate-50 flex items-center justify-center p-6">
                     {product.image ? (
@@ -271,21 +274,24 @@ const Shop = () => {
                   </p>
 
                   <p className="text-xl font-black text-slate-900 mb-6 flex items-center gap-1">
-                    <span className="text-sm font-bold text-indigo-500">$</span>
+                    <span className="text-sm font-bold text-indigo-500">₹</span>
                     {product.price}
                   </p>
 
                   <div className="mt-auto">
                     {getProductQty(product.id) === 0 ? (
                       <button
-                        onClick={() => increaseQty(product)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          increaseQty(product);
+                        }}
                         className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-2xl hover:bg-indigo-600 active:scale-95 transition-all shadow-lg hover:shadow-indigo-500/20 flex items-center justify-center gap-2"
                       >
                         <Plus size={18} />
                         Add to Cart
                       </button>
                     ) : (
-                      <div className="flex items-center justify-between bg-indigo-50 rounded-2xl p-1 border border-indigo-100">
+                      <div className="flex items-center justify-between bg-indigo-50 rounded-2xl p-1 border border-indigo-100" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => decreaseQty(product)}
                           className="w-10 h-10 flex items-center justify-center bg-white text-indigo-600 rounded-xl hover:text-rose-600 transition-colors shadow-sm active:scale-90"

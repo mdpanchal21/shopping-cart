@@ -56,6 +56,8 @@ const updateProductSchema = Joi.object({
 
   productImage: Joi.any(),
 
+  existingImages: Joi.any(),
+
   category: Joi.string()
     .regex(/^[0-9a-fA-F]{24}$/)
     .messages({

@@ -495,7 +495,7 @@ const Profile = () => {
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-2xl font-black text-slate-900 tracking-tighter">${order.totalAmount.toFixed(2)}</p>
+                              <p className="text-2xl font-black text-slate-900 tracking-tighter">₹{order.totalAmount.toFixed(2)}</p>
                               <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
                                 order.status === "delivered" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
                                 order.status === "cancelled" ? "bg-rose-50 text-rose-600 border-rose-100" :

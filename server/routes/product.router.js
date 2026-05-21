@@ -9,7 +9,7 @@ const {
   getSingleProduct,
 } = require("../controller/product.controller");
 
-const { uploadProduct } = require("../middleware/upload");
+const { uploadProductImages } = require("../middleware/upload");
 
 const { roleMiddleware } = require("../middleware/roleMiddleware");
 const authMiddleware = require("../middleware/authMiddleware");
@@ -23,14 +23,12 @@ const {
 router.get("/", authMiddleware, roleMiddleware("admin"), getProduct);
 router.get(
   "/:product_id",
-  authMiddleware,
-  roleMiddleware("admin"),
   getSingleProduct,
 );
 
 router.post(
   "/",
-  uploadProduct,
+  uploadProductImages,
   authMiddleware,
   validate(createProductSchema),
   roleMiddleware("admin"),
@@ -39,7 +37,7 @@ router.post(
 
 router.put(
   "/:product_id",
-  uploadProduct,
+  uploadProductImages,
   authMiddleware,
   validate(updateProductSchema),
   roleMiddleware("admin"),

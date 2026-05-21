@@ -643,7 +643,7 @@ const UserInfo = () => {
                             <td className="py-3 text-xs font-bold text-slate-500">
                               {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </td>
-                            <td className="py-3 text-sm font-black text-indigo-600">${order.totalAmount}</td>
+                            <td className="py-3 text-sm font-black text-indigo-600">₹{order.totalAmount}</td>
                             <td className="py-3">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${order.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
                                 order.status === 'cancelled' ? 'bg-rose-100 text-rose-700' :

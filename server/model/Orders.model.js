@@ -64,8 +64,17 @@ const Orders = new mongoose.Schema(
     },
     paymentMode: {
       type: String,
-      enum: ["COD", "Card", "UPI", "NetBanking"],
+      enum: ["COD", "Razorpay"],
       required: true,
+    },
+    razorpayOrderId: {
+      type: String,
+    },
+    razorpayPaymentId: {
+      type: String,
+    },
+    razorpaySignature: {
+      type: String,
     },
     isActive: {
       type: Boolean,

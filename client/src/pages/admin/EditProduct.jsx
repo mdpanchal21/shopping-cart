@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Save, X, Plus, RefreshCw, Package, Tag, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Save, X, Plus, RefreshCw, Package, Tag, ChevronDown, ArrowLeft, ArrowRight, Image as ImageIcon } from 'lucide-react';
 import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import api from '../../../utils/api';
@@ -23,8 +23,8 @@ const EditProduct = () => {
     category: '',
   });
 
-  const [existingImages, setExistingImages] = useState([]);
-  const [newImages, setNewImages] = useState([]);
+  const [imageGallery, setImageGallery] = useState([]); // Array of { type: 'existing'|'new', data: url|File, id: string }
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     dispatch(fetchCategories());
@@ -32,7 +32,6 @@ const EditProduct = () => {
     const fetchData = async () => {
       try {
         dispatch(setGlobalLoading(true));
-
         const res = await api.get(`/product/${id}`);
 
         if (res.data.success && res.data.data) {
@@ -43,7 +42,12 @@ const EditProduct = () => {
             price: product.price || '',
             category: product.category?._id || product.category || '',
           });
-          setExistingImages(product.image || []);
+          
+          setImageGallery((product.image || []).map(img => ({
+            type: 'existing',
+            data: img,
+            id: Math.random().toString(36).substr(2, 9)
+          })));
         } else {
           toast.error("Product details not found");
           navigate("/admin/products");
@@ -54,7 +58,6 @@ const EditProduct = () => {
       } finally {
         dispatch(setGlobalLoading(false));
       }
-
     };
     fetchData();
   }, [id, navigate, dispatch]);
@@ -64,23 +67,51 @@ const EditProduct = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleNewImageChange = (e) => {
-    const files = Array.from(e.target.files);
-    setNewImages(prev => [...prev, ...files]);
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
   };
 
-  const removeNewImage = (index) => {
-    setNewImages(prev => prev.filter((_, i) => i !== index));
+  const handleDragLeave = () => {
+    setIsDragging(false);
   };
 
-  const removeExistingImage = (img) => {
-    setExistingImages(prev => prev.filter(i => i !== img));
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      addImages(files);
+    }
+  };
+
+  const addImages = (files) => {
+    const newItems = Array.from(files).map(file => ({
+      type: 'new',
+      data: file,
+      id: Math.random().toString(36).substr(2, 9)
+    }));
+    setImageGallery(prev => [...prev, ...newItems]);
+  };
+
+  const removeImage = (id) => {
+    setImageGallery(prev => prev.filter(img => img.id !== id));
+  };
+
+  const moveImage = (index, direction) => {
+    const toIndex = direction === 'left' ? index - 1 : index + 1;
+    setImageGallery(prev => {
+      const updatedGallery = [...prev];
+      const itemToMove = updatedGallery[index];
+      updatedGallery.splice(index, 1);
+      updatedGallery.splice(toIndex, 0, itemToMove);
+      return updatedGallery;
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     dispatch(setGlobalLoading(true));
-
 
     const data = new FormData();
     data.append('name', formData.name);
@@ -88,10 +119,15 @@ const EditProduct = () => {
     data.append('price', formData.price);
     data.append('category', formData.category);
 
-    data.append('productImage', JSON.stringify(existingImages));
+    const existingPaths = imageGallery
+      .filter(img => img.type === 'existing')
+      .map(img => img.data);
+    
+    // Send existing paths as a stringified array (Backend will parse it)
+    data.append('existingImages', JSON.stringify(existingPaths));
 
-    newImages.forEach(image => {
-      data.append('productImage', image);
+    imageGallery.filter(img => img.type === 'new').forEach(img => {
+      data.append('productImage', img.data);
     });
 
     try {
@@ -105,7 +141,6 @@ const EditProduct = () => {
     } finally {
       dispatch(setGlobalLoading(false));
     }
-
   };
 
 
@@ -227,50 +262,78 @@ const EditProduct = () => {
 
             <div className="admin-card space-y-6">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Media Assets</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {/* Existing Images */}
-                {existingImages.map((img, i) => (
-                  <div key={`ex-${i}`} className="relative group aspect-square rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
-                    <img src={`${import.meta.env.VITE_BASE_URL}${img}`} alt="" className="w-full h-full object-cover p-1 rounded-2xl" />
+              <div className="grid grid-cols-2 gap-4">
+                {imageGallery.map((img, i) => (
+                  <div key={img.id} className="relative group aspect-square rounded-2xl bg-white border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                    <img 
+                      src={img.type === 'existing' ? `${import.meta.env.VITE_BASE_URL}${img.data}` : URL.createObjectURL(img.data)} 
+                      alt="" 
+                      className="w-full h-full object-contain p-2 rounded-2xl" 
+                    />
+                    
+                    {i === 0 && (
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-md shadow-lg z-10">
+                        Main
+                      </div>
+                    )}
+
+                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                       {i > 0 && (
+                         <button
+                           type="button"
+                           onClick={() => moveImage(i, 'left')}
+                           className="p-2 bg-white rounded-xl text-slate-900 hover:text-indigo-600 active:scale-90 transition-all shadow-sm"
+                         >
+                           <ArrowLeft size={14} strokeWidth={3} />
+                         </button>
+                       )}
+                       {i < imageGallery.length - 1 && (
+                         <button
+                           type="button"
+                           onClick={() => moveImage(i, 'right')}
+                           className="p-2 bg-white rounded-xl text-slate-900 hover:text-indigo-600 active:scale-90 transition-all shadow-sm"
+                         >
+                           <ArrowRight size={14} strokeWidth={3} />
+                         </button>
+                       )}
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => removeExistingImage(img)}
-                      className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur rounded-xl text-rose-600 opacity-0 group-hover:opacity-100 transition-all shadow-xl active:scale-90"
+                      onClick={() => removeImage(img.id)}
+                      className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur rounded-lg text-rose-600 shadow-xl active:scale-90 z-20"
                     >
                       <X size={14} strokeWidth={3} />
                     </button>
-                    <div className="absolute inset-x-0 bottom-0 py-1.5 px-3 bg-slate-900/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                       <p className="text-[7px] font-black uppercase text-white tracking-widest text-center">Existing</p>
+
+                    <div className={`absolute inset-x-0 bottom-0 py-1 px-3 backdrop-blur-sm transition-opacity ${img.type === 'existing' ? 'bg-slate-900/60' : 'bg-indigo-600/80'}`}>
+                       <p className="text-[6px] font-black uppercase text-white tracking-widest text-center">{img.type}</p>
                     </div>
                   </div>
                 ))}
 
-                {/* New Images */}
-                {newImages.map((image, i) => (
-                  <div key={`new-${i}`} className="relative group aspect-square rounded-2xl bg-white border border-indigo-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
-                    <img src={URL.createObjectURL(image)} alt="" className="w-full h-full object-cover p-1 rounded-2xl" />
-                    <button
-                      type="button"
-                      onClick={() => removeNewImage(i)}
-                      className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur rounded-xl text-rose-600 opacity-0 group-hover:opacity-100 transition-all shadow-xl active:scale-90"
-                    >
-                      <X size={14} strokeWidth={3} />
-                    </button>
-                    <div className="absolute inset-x-0 bottom-0 py-1.5 px-3 bg-indigo-600/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                       <p className="text-[7px] font-black uppercase text-white tracking-widest text-center">Pending</p>
+                {imageGallery.length < 5 && (
+                  <label 
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-all cursor-pointer group ${
+                      isDragging 
+                        ? "border-indigo-500 bg-indigo-50 text-indigo-500 scale-105" 
+                        : "border-slate-200 bg-slate-50 text-slate-300 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50/30"
+                    }`}
+                  >
+                    <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                      <ImageIcon size={24} className="group-hover:text-indigo-600 transition-colors" />
                     </div>
-                  </div>
-                ))}
-
-                <label className="aspect-square rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all cursor-pointer group">
-                  <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                    <Plus size={24} className="group-hover:text-indigo-600 transition-colors" />
-                  </div>
-                  <span className="text-[9px] font-black mt-3 uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">Add Media</span>
-                  <input type="file" multiple className="hidden" onChange={handleNewImageChange} accept="image/*" />
-                </label>
+                    <span className="text-[8px] font-black mt-3 uppercase tracking-widest text-slate-400 group-hover:text-indigo-600 transition-colors">
+                      {isDragging ? "Drop Now" : "Add Media"}
+                    </span>
+                    <input type="file" multiple className="hidden" onChange={(e) => addImages(e.target.files)} accept="image/*" />
+                  </label>
+                )}
               </div>
-              <p className="text-[10px] text-slate-400 font-bold italic text-center uppercase tracking-tighter">New images will be appended to catalog</p>
+              <p className="text-[10px] text-slate-400 font-bold italic text-center uppercase tracking-tighter">Images are saved in the order shown above</p>
             </div>
 
             <button

@@ -69,10 +69,75 @@ const Checkout = () => {
   };
 
   const paymentOptions = [
-    { label: "Credit/Debit Card", value: "CARD", icon: CreditCard, desc: "Secure encrypted transaction" },
-    { label: "UPI Payment", value: "UPI", icon: QrCode, desc: "Scan and pay using any app" },
     { label: "Cash On Delivery", value: "COD", icon: Truck, desc: "Pay when you receive" },
+    { label: "Pay Online (Razorpay)", value: "Razorpay", icon: CreditCard, desc: "UPI, Cards, NetBanking" },
   ];
+
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleRazorpayPayment = async () => {
+    const res = await loadRazorpayScript();
+    if (!res) {
+      toast.error("Razorpay SDK failed to load. Are you online?");
+      return;
+    }
+
+    try {
+      // Create order
+      const result = await api.post("/payment/create", { addressType });
+      if (!result.data.success) {
+        toast.error("Failed to create order on Razorpay");
+        return;
+      }
+      const { razorpayOrder } = result.data;
+      
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID, // Use environment variable
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: "ShopSphere",
+        description: "Payment for your order",
+        order_id: razorpayOrder.id,
+        handler: async function (response) {
+          try {
+            const verifyRes = await api.post("/payment/verify", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            
+            if (verifyRes.data.success) {
+              toast.success("Payment successful! Order placed.");
+              dispatch(clearCart());
+              setTimeout(() => navigate("/shop"), 2000);
+            }
+          } catch (err) {
+            toast.error(err.response?.data?.message || "Payment verification failed");
+          }
+        },
+        prefill: {
+          name: userProfile?.name || "Customer",
+          email: userProfile?.email || "customer@example.com",
+        },
+        theme: {
+          color: "#4f46e5",
+        }
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to initialize payment");
+    }
+  };
 
   const completeOrder = async () => {
     try {
@@ -95,19 +160,11 @@ const Checkout = () => {
       return;
     }
 
-    if (selectedPaymentMethod === "CARD") {
-      setCheckoutStep("card");
-    } else if (selectedPaymentMethod === "UPI") {
-      setCheckoutStep("upi");
+    if (selectedPaymentMethod === "Razorpay") {
+      handleRazorpayPayment();
     } else {
       completeOrder();
     }
-  };
-
-  const handleCardNumberChange = (e) => {
-    let value = e.target.value.replace(/\D/g, "").slice(0, 16);
-    value = value.replace(/(.{4})/g, "$1 ").trim();
-    setCardNumber(value);
   };
 
   if (cartData.length === 0) {
@@ -454,7 +511,7 @@ const Checkout = () => {
                             QTY: {item.quantity}
                           </span>
                           <span className="text-[10px] font-black text-slate-900">
-                            ${(item.price * item.quantity).toFixed(2)}
+                            ₹{(item.price * item.quantity).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -464,7 +521,7 @@ const Checkout = () => {
                 
                 <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
                   <span className="text-lg font-black text-slate-900 tracking-tight uppercase">Final Total</span>
-                  <span className="text-3xl font-black text-indigo-600 tracking-tighter">${totalAmount.toFixed(2)}</span>
+                  <span className="text-3xl font-black text-indigo-600 tracking-tighter">₹{totalAmount.toFixed(2)}</span>
                 </div>
               </div>
               
