@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const Cart = require("../model/Cart.model");
 const { generateAccessToken, generateRefreshToken } = require("../utils/token");
+const logger = require("../utils/logger");
 
 exports.registerUser = async (req, res) => {
   try {
@@ -26,6 +27,7 @@ exports.registerUser = async (req, res) => {
         message: "User with this email already exist",
       });
     }
+    logger.error("Internal server error while register user", err);
     return res.status(500).json({
       message: "Internal server error while register user" + err.message,
     });
@@ -79,10 +81,13 @@ exports.loginUser = async (req, res) => {
     res.cookie("refreshToken", refreshToken, options);
     res.cookie("accessToken", accessToken);
 
+    logger.info(`User ${userfind.email} logged in successfully`);
+
     return res
       .status(200)
       .json({ message: "Login succesfully", token: accessToken, role: userfind.role });
   } catch (err) {
+    logger.error("Server Error while login user", err);
     return res.status(500).json("Server Error while login user" + err);
   }
 };
@@ -113,7 +118,7 @@ exports.logOut = async (req, res) => {
 
 exports.generateAccessToken = async (req, res) => {
   try {
-    console.log("ATTEMPTING TOKEN REFRESH");
+    logger.info("Attempting token refresh");
     const { refreshToken } = req.cookies;
 
     if (!refreshToken) {
@@ -134,7 +139,7 @@ exports.generateAccessToken = async (req, res) => {
       { expiresIn: "15m" },
     );
     
-    console.log("NEW ACCESS TOKEN GENERATED FOR USER:", userFind.email);
+    logger.info(`New access token generated for user: ${userFind.email}`);
 
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
@@ -153,7 +158,7 @@ exports.generateAccessToken = async (req, res) => {
           { $set: { refreshToken: null } }
         );
       } catch (innerErr) {
-        console.error("Failed to clear DB refresh token", innerErr);
+        logger.error("Failed to clear DB refresh token", innerErr);
       }
     }
 

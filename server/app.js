@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const logger = require("./utils/logger");
 
 dotenv.config();
 connectDB();
@@ -19,9 +20,16 @@ const corsOptions = {
 app.use(express.json());
 app.use(cookieParser());
 app.use(cors(corsOptions));
+
+// HTTP Request logging middleware
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`);
+  next();
+});
+
 app.use("/uploads", express.static("uploads"));
 app.use(routes);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  logger.info(`Server is running on port ${PORT}`);
 });
